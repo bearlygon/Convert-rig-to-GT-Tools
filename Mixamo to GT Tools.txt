@@ -1,0 +1,399 @@
+import maya.cmds as cmds
+import maya.api.OpenMaya as om
+import maya.mel as mel  # Required to run MEL commands from Python
+
+# ---------------------------------------------
+# HELP TEXTS
+# ---------------------------------------------
+HELP_TEXT = {
+    "rename": "This tool renames the proxy or joint chain to your custom naming convention.\nUse this before exporting or building the rig.",
+    "exportWeight": "Exports all skin weight maps to image files so you can re-import them later if needed.",
+    "renameOriginal": "Restores the original naming structure of the mesh or skeleton.",
+    "snapBody": "Snaps the entire proxy skeleton to the body mesh so the joints are aligned automatically.",
+    "snapHands": "Snaps hand proxy joints to the wrist/hand mesh region using your snapping rules.",
+    "twist": "Creates twist joints for arms or legs to improve deformation and reduce candy-wrapper twisting."
+}
+
+# ---------------------------------------------
+# FUNCTIONS — TOOL SCRIPTS
+# ---------------------------------------------
+
+def renameProxy(*args):
+    """Rename Mixamo joints to GT tool joints."""
+    print(">>> Rename Mixamo -> GT Tool")
+    joint_map = {
+    'mixamorig:Hips': 'pelvis_jnt',
+    'mixamorig:LeftUpLeg': 'left_hip_jnt',
+    'mixamorig:LeftLeg': 'left_knee_jnt',
+    'mixamorig:LeftFoot': 'left_ankle_jnt',
+    'mixamorig:LeftToeBase': 'left_ball_jnt',
+    'mixamorig:LeftToe_End': 'left_toe_jnt',
+    'mixamorig:RightUpLeg': 'right_hip_jnt',
+    'mixamorig:RightLeg': 'right_knee_jnt',
+    'mixamorig:RightFoot': 'right_ankle_jnt',
+    'mixamorig:RightToeBase': 'right_ball_jnt',
+    'mixamorig:RightToe_End': 'right_toe_jnt',
+    'mixamorig:Spine': 'waist_jnt',
+    'mixamorig:Spine1': 'spine_jnt',
+    'mixamorig:Spine2': 'chest_jnt',
+    'mixamorig:Neck': 'neckBase_jnt',
+    'mixamorig:Head': 'head_jnt',
+    'mixamorig:HeadTop_End': 'head_endJnt',
+    'mixamorig:LeftShoulder': 'left_clavicle_jnt',
+    'mixamorig:LeftArm': 'left_shoulder_jnt',
+    'mixamorig:LeftForeArm': 'left_elbow_jnt',
+    'mixamorig:LeftHand': 'left_wrist_jnt',
+    'mixamorig:LeftHandThumb1': 'left_thumb01_jnt',
+    'mixamorig:LeftHandThumb2': 'left_thumb02_jnt',
+    'mixamorig:LeftHandThumb3': 'left_thumb03_jnt',
+    'mixamorig:LeftHandThumb4': 'left_thumb04_endJnt',
+    'mixamorig:LeftHandIndex1': 'left_index01_jnt',
+    'mixamorig:LeftHandIndex2': 'left_index02_jnt',
+    'mixamorig:LeftHandIndex3': 'left_index03_jnt',
+    'mixamorig:LeftHandIndex4': 'left_index04_endJnt',
+    'mixamorig:LeftHandMiddle1': 'left_middle01_jnt',
+    'mixamorig:LeftHandMiddle2': 'left_middle02_jnt',
+    'mixamorig:LeftHandMiddle3': 'left_middle03_jnt',
+    'mixamorig:LeftHandMiddle4': 'left_middle04_endJnt',
+    'mixamorig:LeftHandRing1': 'left_ring01_jnt',
+    'mixamorig:LeftHandRing2': 'left_ring02_jnt',
+    'mixamorig:LeftHandRing3': 'left_ring03_jnt',
+    'mixamorig:LeftHandRing4': 'left_ring04_endJnt',
+    'mixamorig:LeftHandPinky1': 'left_pinky01_jnt',
+    'mixamorig:LeftHandPinky2': 'left_pinky02_jnt',
+    'mixamorig:LeftHandPinky3': 'left_pinky03_jnt',
+    'mixamorig:LeftHandPinky4': 'left_pinky04_endJnt',
+    'mixamorig:RightShoulder': 'right_clavicle_jnt',
+    'mixamorig:RightArm': 'right_shoulder_jnt',
+    'mixamorig:RightForeArm': 'right_elbow_jnt',
+    'mixamorig:RightHand': 'right_wrist_jnt',
+    'mixamorig:RightHandThumb1': 'right_thumb01_jnt',
+    'mixamorig:RightHandThumb2': 'right_thumb02_jnt',
+    'mixamorig:RightHandThumb3': 'right_thumb03_jnt',
+    'mixamorig:RightHandThumb4': 'right_thumb04_endJnt',
+    'mixamorig:RightHandIndex1': 'right_index01_jnt',
+    'mixamorig:RightHandIndex2': 'right_index02_jnt',
+    'mixamorig:RightHandIndex3': 'right_index03_jnt',
+    'mixamorig:RightHandIndex4': 'right_index04_endJnt',
+    'mixamorig:RightHandMiddle1': 'right_middle01_jnt',
+    'mixamorig:RightHandMiddle2': 'right_middle02_jnt',
+    'mixamorig:RightHandMiddle3': 'right_middle03_jnt',
+    'mixamorig:RightHandMiddle4': 'right_middle04_endJnt',
+    'mixamorig:RightHandRing1': 'right_ring01_jnt',
+    'mixamorig:RightHandRing2': 'right_ring02_jnt',
+    'mixamorig:RightHandRing3': 'right_ring03_jnt',
+    'mixamorig:RightHandRing4': 'right_ring04_endJnt',
+    'mixamorig:RightHandPinky1': 'right_pinky01_jnt',
+    'mixamorig:RightHandPinky2': 'right_pinky02_jnt',
+    'mixamorig:RightHandPinky3': 'right_pinky03_jnt',
+    'mixamorig:RightHandPinky4': 'right_pinky04_endJnt',
+    }
+    for mixamo_name, gt_name in joint_map.items():
+        if cmds.objExists(mixamo_name):
+            cmds.rename(mixamo_name, gt_name)
+
+def renameToOriginal(*args):
+    """Rename GT tool joints back to Mixamo joints."""
+    print(">>> Rename GT -> Mixamo")
+    joint_map = {
+    'mixamorig:Hips': 'pelvis_jnt',
+    'mixamorig:LeftUpLeg': 'left_hip_jnt',
+    'mixamorig:LeftLeg': 'left_knee_jnt',
+    'mixamorig:LeftFoot': 'left_ankle_jnt',
+    'mixamorig:LeftToeBase': 'left_ball_jnt',
+    'mixamorig:LeftToe_End': 'left_toe_jnt',
+    'mixamorig:RightUpLeg': 'right_hip_jnt',
+    'mixamorig:RightLeg': 'right_knee_jnt',
+    'mixamorig:RightFoot': 'right_ankle_jnt',
+    'mixamorig:RightToeBase': 'right_ball_jnt',
+    'mixamorig:RightToe_End': 'right_toe_jnt',
+    'mixamorig:Spine': 'waist_jnt',
+    'mixamorig:Spine1': 'spine_jnt',
+    'mixamorig:Spine2': 'chest_jnt',
+    'mixamorig:Neck': 'neckBase_jnt',
+    'mixamorig:Head': 'head_jnt',
+    'mixamorig:HeadTop_End': 'head_endJnt',
+    'mixamorig:LeftShoulder': 'left_clavicle_jnt',
+    'mixamorig:LeftArm': 'left_shoulder_jnt',
+    'mixamorig:LeftForeArm': 'left_elbow_jnt',
+    'mixamorig:LeftHand': 'left_wrist_jnt',
+    'mixamorig:LeftHandThumb1': 'left_thumb01_jnt',
+    'mixamorig:LeftHandThumb2': 'left_thumb02_jnt',
+    'mixamorig:LeftHandThumb3': 'left_thumb03_jnt',
+    'mixamorig:LeftHandThumb4': 'left_thumb04_endJnt',
+    'mixamorig:LeftHandIndex1': 'left_index01_jnt',
+    'mixamorig:LeftHandIndex2': 'left_index02_jnt',
+    'mixamorig:LeftHandIndex3': 'left_index03_jnt',
+    'mixamorig:LeftHandIndex4': 'left_index04_endJnt',
+    'mixamorig:LeftHandMiddle1': 'left_middle01_jnt',
+    'mixamorig:LeftHandMiddle2': 'left_middle02_jnt',
+    'mixamorig:LeftHandMiddle3': 'left_middle03_jnt',
+    'mixamorig:LeftHandMiddle4': 'left_middle04_endJnt',
+    'mixamorig:LeftHandRing1': 'left_ring01_jnt',
+    'mixamorig:LeftHandRing2': 'left_ring02_jnt',
+    'mixamorig:LeftHandRing3': 'left_ring03_jnt',
+    'mixamorig:LeftHandRing4': 'left_ring04_endJnt',
+    'mixamorig:LeftHandPinky1': 'left_pinky01_jnt',
+    'mixamorig:LeftHandPinky2': 'left_pinky02_jnt',
+    'mixamorig:LeftHandPinky3': 'left_pinky03_jnt',
+    'mixamorig:LeftHandPinky4': 'left_pinky04_endJnt',
+    'mixamorig:RightShoulder': 'right_clavicle_jnt',
+    'mixamorig:RightArm': 'right_shoulder_jnt',
+    'mixamorig:RightForeArm': 'right_elbow_jnt',
+    'mixamorig:RightHand': 'right_wrist_jnt',
+    'mixamorig:RightHandThumb1': 'right_thumb01_jnt',
+    'mixamorig:RightHandThumb2': 'right_thumb02_jnt',
+    'mixamorig:RightHandThumb3': 'right_thumb03_jnt',
+    'mixamorig:RightHandThumb4': 'right_thumb04_endJnt',
+    'mixamorig:RightHandIndex1': 'right_index01_jnt',
+    'mixamorig:RightHandIndex2': 'right_index02_jnt',
+    'mixamorig:RightHandIndex3': 'right_index03_jnt',
+    'mixamorig:RightHandIndex4': 'right_index04_endJnt',
+    'mixamorig:RightHandMiddle1': 'right_middle01_jnt',
+    'mixamorig:RightHandMiddle2': 'right_middle02_jnt',
+    'mixamorig:RightHandMiddle3': 'right_middle03_jnt',
+    'mixamorig:RightHandMiddle4': 'right_middle04_endJnt',
+    'mixamorig:RightHandRing1': 'right_ring01_jnt',
+    'mixamorig:RightHandRing2': 'right_ring02_jnt',
+    'mixamorig:RightHandRing3': 'right_ring03_jnt',
+    'mixamorig:RightHandRing4': 'right_ring04_endJnt',
+    'mixamorig:RightHandPinky1': 'right_pinky01_jnt',
+    'mixamorig:RightHandPinky2': 'right_pinky02_jnt',
+    'mixamorig:RightHandPinky3': 'right_pinky03_jnt',
+    'mixamorig:RightHandPinky4': 'right_pinky04_endJnt',
+    }
+    inverse_joint_map = {v: k for k, v in joint_map.items()}
+    for gt_name, mixamo_name in inverse_joint_map.items():
+        if cmds.objExists(gt_name):
+            cmds.rename(gt_name, mixamo_name)
+
+# ---------------------------------------------
+# Snapping Proxies to Body
+# ---------------------------------------------
+snap_list = [
+    ("chest_proxy", "mixamorig:Spine2"),
+    ("waist_proxy", "mixamorig:Spine"),
+    ("right_hip_proxy", "mixamorig:RightUpLeg"),
+    ("left_hip_proxy", "mixamorig:LeftUpLeg"),
+    ("right_ankle_proxy", "mixamorig:RightFoot"),
+    ("left_ankle_proxy", "mixamorig:LeftFoot"),
+    ("right_ball_proxy", "mixamorig:RightToeBase"),
+    ("right_toe_proxy", "mixamorig:RightToe_End"),
+    ("left_ball_proxy", "mixamorig:LeftToeBase"),
+    ("left_toe_proxy", "mixamorig:LeftToe_End"),
+    ("right_knee_proxy", "mixamorig:RightLeg"),
+    ("left_knee_proxy", "mixamorig:LeftLeg"),
+    ("right_clavicle_proxy", "mixamorig:RightShoulder"),
+    ("right_shoulder_proxy", "mixamorig:RightArm"),
+    ("right_wrist_proxy", "mixamorig:RightHand"),
+    ("right_elbow_proxy", "mixamorig:RightForeArm"),
+    ("left_clavicle_proxy", "mixamorig:LeftShoulder"),
+    ("left_shoulder_proxy", "mixamorig:LeftArm"),
+    ("left_wrist_proxy", "mixamorig:LeftHand"),
+    ("left_elbow_proxy", "mixamorig:LeftForeArm"),
+    ("neckBase_proxy", "mixamorig:Neck"),
+    ("head_proxy", "mixamorig:Head"),
+    ("neckMid_proxy", "mixamorig:Neck1"),
+    ("right_eye_proxy", "mixamorig:RightEye"),
+    ("left_eye_proxy", "mixamorig:LeftEye"),
+    ("head_endProxy", "mixamorig:HeadTop_End")
+]
+
+def snapProxyToBody(*args):
+    print(">>> Snap Proxy to Body")
+    for proxy, joint in snap_list:
+        if cmds.objExists(proxy) and cmds.objExists(joint):
+            pos = cmds.xform(joint, q=True, ws=True, rp=True)
+            cmds.xform(proxy, ws=True, t=pos)
+        else:
+            print(f"[MISSING] {proxy} or {joint}")
+
+    # Pelvis special logic
+    pelvis = "pelvis_proxy"
+    r_hip = "right_hip_proxy"
+    l_hip = "left_hip_proxy"
+    if cmds.objExists(pelvis) and cmds.objExists(r_hip) and cmds.objExists(l_hip):
+        r_pos = cmds.xform(r_hip, q=True, ws=True, rp=True)
+        l_pos = cmds.xform(l_hip, q=True, ws=True, rp=True)
+        avg_y = (r_pos[1] + l_pos[1]) * 0.5
+        pelvis_pos = cmds.xform(pelvis, q=True, ws=True, rp=True)
+        new_pos = [pelvis_pos[0], avg_y, pelvis_pos[2]]
+        cmds.xform(pelvis, ws=True, t=new_pos)
+        print("Pelvis snapped to averaged hip height.")
+    else:
+        print("Warning: pelvis_proxy or hip proxies missing.")
+    # ----------------------------
+    # NEW: Elbow X-Only Alignment
+    elbow_map = {
+        "right_elbow_proxy": "mixamorig:RightForeArm",
+        "left_elbow_proxy": "mixamorig:LeftForeArm",
+    }
+
+    for proxy, bone in elbow_map.items():
+        if cmds.objExists(proxy) and cmds.objExists(bone):
+            bone_pos = cmds.xform(bone, q=True, ws=True, t=True)
+            proxy_pos = cmds.xform(proxy, q=True, ws=True, t=True)
+
+            new_pos = [
+                bone_pos[0],
+                proxy_pos[1],
+                proxy_pos[2],
+            ]
+
+            cmds.xform(proxy, ws=True, t=new_pos)
+            print(f"[ELBOW-X] {proxy} X aligned to {bone}")
+
+        else:
+            print(f"[MISSING] {proxy if not cmds.objExists(proxy) else bone}")
+
+    # -------------------------------------
+    # FIX: Reset local translateY properly
+    # -------------------------------------
+    for proxy in ["right_elbow_proxy", "left_elbow_proxy"]:
+        if cmds.objExists(proxy):
+            cmds.setAttr(proxy + ".translateY", 0)
+            print(f"[ELBOW-Y=0] {proxy}.translateY = 0")
+
+
+# ---------------------------------------------
+# Snapping Proxies to Hands
+# ---------------------------------------------
+def snapProxyToHands(*args):
+    print(">>> Snap Proxy to Hands")
+
+    def align_thumb_proxy(proxy, joint):
+        jm = om.MMatrix(cmds.xform(joint, q=True, ws=True, m=True))
+        jmt = om.MTransformationMatrix(jm)
+        jointX = om.MVector(jm[0], jm[1], jm[2])
+        jointZ = om.MVector(jm[8], jm[9], jm[10])
+        is_left = "left" in joint.lower()
+        proxyY = (-jointX).normal() if is_left else jointX.normal()
+        proxyX = (-jointZ).normal() if is_left else jointZ.normal()
+        proxyZ = proxyX ^ proxyY
+        newMat = om.MMatrix([
+            proxyX.x, proxyX.y, proxyX.z, 0,
+            proxyY.x, proxyY.y, proxyY.z, 0,
+            proxyZ.x, proxyZ.y, proxyZ.z, 0,
+            jmt.translation(om.MSpace.kWorld).x,
+            jmt.translation(om.MSpace.kWorld).y,
+            jmt.translation(om.MSpace.kWorld).z,
+            1
+        ])
+        cmds.xform(proxy, ws=True, m=list(newMat))
+        print(f"[THUMB] {proxy} aligned to {joint} ({'LEFT' if is_left else 'RIGHT'})")
+
+    # Thumb proxies
+    thumb_pairs = [
+        ("right_thumb01_proxy", "mixamorig:RightHandThumb1"),
+        ("right_thumb02_proxy", "mixamorig:RightHandThumb2"),
+        ("right_thumb03_proxy", "mixamorig:RightHandThumb3"),
+        ("right_thumb04_endProxy", "mixamorig:RightHandThumb4"),
+        ("left_thumb01_proxy", "mixamorig:LeftHandThumb1"),
+        ("left_thumb02_proxy", "mixamorig:LeftHandThumb2"),
+        ("left_thumb03_proxy", "mixamorig:LeftHandThumb3"),
+        ("left_thumb04_endProxy", "mixamorig:LeftHandThumb4"),
+    ]
+
+    # Finger proxies (position only)
+    proxy_to_bone = {
+        # Right
+        "right_index01_proxy": "mixamorig:RightHandIndex1",
+        "right_index02_proxy": "mixamorig:RightHandIndex2",
+        "right_index03_proxy": "mixamorig:RightHandIndex3",
+        "right_index04_endProxy": "mixamorig:RightHandIndex4",
+        "right_middle01_proxy": "mixamorig:RightHandMiddle1",
+        "right_middle02_proxy": "mixamorig:RightHandMiddle2",
+        "right_middle03_proxy": "mixamorig:RightHandMiddle3",
+        "right_middle04_endProxy": "mixamorig:RightHandMiddle4",
+        "right_ring01_proxy": "mixamorig:RightHandRing1",
+        "right_ring02_proxy": "mixamorig:RightHandRing2",
+        "right_ring03_proxy": "mixamorig:RightHandRing3",
+        "right_ring04_endProxy": "mixamorig:RightHandRing4",
+        "right_pinky01_proxy": "mixamorig:RightHandPinky1",
+        "right_pinky02_proxy": "mixamorig:RightHandPinky2",
+        "right_pinky03_proxy": "mixamorig:RightHandPinky3",
+        "right_pinky04_endProxy": "mixamorig:RightHandPinky4",
+        # Left
+        "left_index01_proxy": "mixamorig:LeftHandIndex1",
+        "left_index02_proxy": "mixamorig:LeftHandIndex2",
+        "left_index03_proxy": "mixamorig:LeftHandIndex3",
+        "left_index04_endProxy": "mixamorig:LeftHandIndex4",
+        "left_middle01_proxy": "mixamorig:LeftHandMiddle1",
+        "left_middle02_proxy": "mixamorig:LeftHandMiddle2",
+        "left_middle03_proxy": "mixamorig:LeftHandMiddle3",
+        "left_middle04_endProxy": "mixamorig:LeftHandMiddle4",
+        "left_ring01_proxy": "mixamorig:LeftHandRing1",
+        "left_ring02_proxy": "mixamorig:LeftHandRing2",
+        "left_ring03_proxy": "mixamorig:LeftHandRing3",
+        "left_ring04_endProxy": "mixamorig:LeftHandRing4",
+        "left_pinky01_proxy": "mixamorig:LeftHandPinky1",
+        "left_pinky02_proxy": "mixamorig:LeftHandPinky2",
+        "left_pinky03_proxy": "mixamorig:LeftHandPinky3",
+        "left_pinky04_endProxy": "mixamorig:LeftHandPinky4",
+    }
+
+    # Snap thumbs (position + orientation)
+    for proxy, joint in thumb_pairs:
+        if cmds.objExists(proxy) and cmds.objExists(joint):
+            align_thumb_proxy(proxy, joint)
+        else:
+            print(f"[MISSING] {proxy} or {joint}")
+
+    # Snap fingers (position only)
+    for proxy, joint in proxy_to_bone.items():
+        if cmds.objExists(proxy) and cmds.objExists(joint):
+            pos = cmds.xform(joint, q=True, ws=True, t=True)
+            cmds.xform(proxy, ws=True, t=pos)
+        else:
+            print(f"[MISSING] {proxy} or {joint}")
+
+
+    print(">>> All hand proxies snapped!")
+
+
+# ---------------------------------------------
+# HELP POPUP WINDOW
+# ---------------------------------------------
+def showHelp(topic, *args):
+    cmds.confirmDialog(
+        title="Help",
+        message=HELP_TEXT.get(topic, "No help available."),
+        button=["OK"],
+        icon="information"
+    )
+
+# ---------------------------------------------
+# BUILD UI
+# ---------------------------------------------
+def openMyRiggerUI():
+    if cmds.window("myToolsUI", exists=True):
+        cmds.deleteUI("myToolsUI")
+
+    win = cmds.window("myToolsUI", title="Mixamo", widthHeight=(250, 280), sizeable=False)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=10)
+
+    cmds.frameLayout(label="Mixamo Mapping", collapsable=False, labelVisible=True)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=8)
+
+    def addToolButton(label, command, helpKey):
+        cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnWidth2=(240, 40))
+        cmds.button(label=label, height=35, command=lambda *args: command())
+        cmds.iconTextButton(
+            style="iconOnly",
+            image="help.png",
+            width=35, height=35,
+            command=lambda *args: showHelp(helpKey)
+        )
+        cmds.setParent("..")
+
+    addToolButton("1. Rename to GT Tools", renameProxy, "rename")
+    addToolButton("2. Rename to Original", renameToOriginal, "renameOriginal")
+    addToolButton("3. Snapping Proxy to Body", snapProxyToBody, "snapBody")
+    addToolButton("4. Snapping Proxy to Hands", snapProxyToHands, "snapHands")
+
+    cmds.setParent("..")
+    cmds.setParent("..")
+    cmds.showWindow(win)
+
+# Run UI
+openMyRiggerUI()

@@ -1,0 +1,627 @@
+import maya.cmds as cmds
+import maya.api.OpenMaya as om
+
+# ---------------------------------------------
+# HELP TEXTS
+# ---------------------------------------------
+HELP_TEXT = {
+    "rename": "Renames joints from AccuRig base to GT naming convention.",
+    "renameOriginal": "Renames GT-style joints back to AccuRig base names.",
+    "snapBody": "Snaps all proxies to AccuRig bones, including pelvis centering.",
+    "snapHands": "Snaps all hand and finger proxies, aligns thumbs with proper orientation.",
+    "createTwist": "Creates twist bones for shoulders, hips, and knees with helper groups.",
+    "skinJnt": "Select skinning joints only (exclude endJnt and root) to ",
+}
+
+# ---------------------------------------------
+# BUTTON 1 SCRIPT: Rename Proxy to GT
+# ---------------------------------------------
+def renameProxy():
+    joint_map = {
+        # Foot
+        'CC_Base_R_Foot': 'right_ankle_jnt',
+        'CC_Base_R_ToeBase': 'right_ball_jnt',
+        'CC_Base_L_Foot': 'left_ankle_jnt',
+        'CC_Base_L_ToeBase': 'left_ball_jnt',
+        # Calf
+        'CC_Base_R_Calf': 'right_knee_jnt',
+        'CC_Base_R_CalfTwist01': 'right_knee_jnt_twist01_jnt',
+        'CC_Base_R_CalfTwist02': 'right_knee_jnt_twist02_jnt',
+        'CC_Base_L_Calf': 'left_knee_jnt',
+        'CC_Base_L_CalfTwist01': 'left_knee_jnt_twist01_jnt',
+        'CC_Base_L_CalfTwist02': 'left_knee_jnt_twist02_jnt',
+        # Thigh
+        'CC_Base_R_Thigh': 'right_hip_jnt',
+        'CC_Base_R_ThighTwist01': 'right_hip_jnt_twist01_jnt',
+        'CC_Base_R_ThighTwist02': 'right_hip_jnt_twist02_jnt',
+        'CC_Base_L_Thigh': 'left_hip_jnt',
+        'CC_Base_L_ThighTwist01': 'left_hip_jnt_twist01_jnt',
+        'CC_Base_L_ThighTwist02': 'left_hip_jnt_twist02_jnt',
+        # Body
+        'CC_Base_Waist': 'spine02_jnt',
+        'CC_Base_Spine01': 'spine03_jnt',
+        'CC_Base_Hip': 'pelvis_jnt',
+        'CC_Base_Spine02': 'chest_jnt',
+        'CC_Base_NeckTwist01': 'neckBase_jnt',
+        'CC_Base_NeckTwist02': 'neckMid_jnt',
+        'CC_Base_Head': 'head_jnt',
+        # Shoulder
+        'CC_Base_R_Clavicle': 'right_clavicle_jnt',
+        'CC_Base_R_Upperarm': 'right_shoulder_jnt',
+        'CC_Base_R_UpperarmTwist01': 'right_shoulder_jnt_twist01_jnt',
+        'CC_Base_R_UpperarmTwist02': 'right_shoulder_jnt_twist02_jnt',
+        'CC_Base_R_ForearmTwist01': 'right_elbow_jnt',
+        'CC_Base_R_ForearmTwist02': 'right_forearm_jnt',
+        'CC_Base_L_Clavicle': 'left_clavicle_jnt',
+        'CC_Base_L_Upperarm': 'left_shoulder_jnt',
+        'CC_Base_L_UpperarmTwist01': 'left_shoulder_jnt_twist01_jnt',
+        'CC_Base_L_UpperarmTwist02': 'left_shoulder_jnt_twist02_jnt',
+        'CC_Base_L_ForearmTwist01': 'left_elbow_jnt',
+        'CC_Base_L_ForearmTwist02': 'left_forearm_jnt',
+        # Fingers
+        'CC_Base_R_Hand': 'right_wrist_jnt',
+        'CC_Base_R_Index1': 'right_index01_jnt',
+        'CC_Base_R_Index2': 'right_index02_jnt',
+        'CC_Base_R_Index3': 'right_index03_jnt',
+        'CC_Base_R_Mid1': 'right_middle01_jnt',
+        'CC_Base_R_Mid2': 'right_middle02_jnt',
+        'CC_Base_R_Mid3': 'right_middle03_jnt',
+        'CC_Base_R_Pinky1': 'right_pinky01_jnt',
+        'CC_Base_R_Pinky2': 'right_pinky02_jnt',
+        'CC_Base_R_Pinky3': 'right_pinky03_jnt',
+        'CC_Base_R_Ring1': 'right_ring01_jnt',
+        'CC_Base_R_Ring2': 'right_ring02_jnt',
+        'CC_Base_R_Ring3': 'right_ring03_jnt',
+        'CC_Base_R_Thumb1': 'right_thumb01_jnt',
+        'CC_Base_R_Thumb2': 'right_thumb02_jnt',
+        'CC_Base_R_Thumb3': 'right_thumb03_jnt',
+        'CC_Base_L_Hand': 'left_wrist_jnt',
+        'CC_Base_L_Index1': 'left_index01_jnt',
+        'CC_Base_L_Index2': 'left_index02_jnt',
+        'CC_Base_L_Index3': 'left_index03_jnt',
+        'CC_Base_L_Mid1': 'left_middle01_jnt',
+        'CC_Base_L_Mid2': 'left_middle02_jnt',
+        'CC_Base_L_Mid3': 'left_middle03_jnt',
+        'CC_Base_L_Pinky1': 'left_pinky01_jnt',
+        'CC_Base_L_Pinky2': 'left_pinky02_jnt',
+        'CC_Base_L_Pinky3': 'left_pinky03_jnt',
+        'CC_Base_L_Ring1': 'left_ring01_jnt',
+        'CC_Base_L_Ring2': 'left_ring02_jnt',
+        'CC_Base_L_Ring3': 'left_ring03_jnt',
+        'CC_Base_L_Thumb1': 'left_thumb01_jnt',
+        'CC_Base_L_Thumb2': 'left_thumb02_jnt',
+        'CC_Base_L_Thumb3': 'left_thumb03_jnt',
+    }
+    for accurig_name, gt_name in joint_map.items():
+        if cmds.objExists(accurig_name):
+            cmds.rename(accurig_name, gt_name)
+    print(">>> Rename Proxy Completed")
+
+# ---------------------------------------------
+# BUTTON 2 SCRIPT: Rename Back
+# ---------------------------------------------
+def renameToOriginal():
+    joint_map_backward = {v: k for k, v in {
+        # Same dictionary as above, reversed
+        'CC_Base_R_Foot': 'right_ankle_jnt',
+        'CC_Base_R_ToeBase': 'right_ball_jnt',
+        'CC_Base_L_Foot': 'left_ankle_jnt',
+        'CC_Base_L_ToeBase': 'left_ball_jnt',
+        'CC_Base_R_Calf': 'right_knee_jnt',
+        'CC_Base_R_CalfTwist01': 'right_knee_jnt_twist01_jnt',
+        'CC_Base_R_CalfTwist02': 'right_knee_jnt_twist02_jnt',
+        'CC_Base_L_Calf': 'left_knee_jnt',
+        'CC_Base_L_CalfTwist01': 'left_knee_jnt_twist01_jnt',
+        'CC_Base_L_CalfTwist02': 'left_knee_jnt_twist02_jnt',
+        'CC_Base_R_Thigh': 'right_hip_jnt',
+        'CC_Base_R_ThighTwist01': 'right_hip_jnt_twist01_jnt',
+        'CC_Base_R_ThighTwist02': 'right_hip_jnt_twist02_jnt',
+        'CC_Base_L_Thigh': 'left_hip_jnt',
+        'CC_Base_L_ThighTwist01': 'left_hip_jnt_twist01_jnt',
+        'CC_Base_L_ThighTwist02': 'left_hip_jnt_twist02_jnt',
+        'CC_Base_Waist': 'spine02_jnt',
+        'CC_Base_Spine01': 'spine03_jnt',
+        'CC_Base_Hip': 'pelvis_jnt',
+        'CC_Base_Spine02': 'chest_jnt',
+        'CC_Base_NeckTwist01': 'neckBase_jnt',
+        'CC_Base_NeckTwist02': 'neckMid_jnt',
+        'CC_Base_Head': 'head_jnt',
+        'CC_Base_R_Clavicle': 'right_clavicle_jnt',
+        'CC_Base_R_Upperarm': 'right_shoulder_jnt',
+        'CC_Base_R_UpperarmTwist01': 'right_shoulder_jnt_twist01_jnt',
+        'CC_Base_R_UpperarmTwist02': 'right_shoulder_jnt_twist02_jnt',
+        'CC_Base_R_ForearmTwist01': 'right_elbow_jnt',
+        'CC_Base_R_ForearmTwist02': 'right_forearm_jnt',
+        'CC_Base_L_Clavicle': 'left_clavicle_jnt',
+        'CC_Base_L_Upperarm': 'left_shoulder_jnt',
+        'CC_Base_L_UpperarmTwist01': 'left_shoulder_jnt_twist01_jnt',
+        'CC_Base_L_UpperarmTwist02': 'left_shoulder_jnt_twist02_jnt',
+        'CC_Base_L_ForearmTwist01': 'left_elbow_jnt',
+        'CC_Base_L_ForearmTwist02': 'left_forearm_jnt',
+        'CC_Base_R_Hand': 'right_wrist_jnt',
+        'CC_Base_R_Index1': 'right_index01_jnt',
+        'CC_Base_R_Index2': 'right_index02_jnt',
+        'CC_Base_R_Index3': 'right_index03_jnt',
+        'CC_Base_R_Mid1': 'right_middle01_jnt',
+        'CC_Base_R_Mid2': 'right_middle02_jnt',
+        'CC_Base_R_Mid3': 'right_middle03_jnt',
+        'CC_Base_R_Pinky1': 'right_pinky01_jnt',
+        'CC_Base_R_Pinky2': 'right_pinky02_jnt',
+        'CC_Base_R_Pinky3': 'right_pinky03_jnt',
+        'CC_Base_R_Ring1': 'right_ring01_jnt',
+        'CC_Base_R_Ring2': 'right_ring02_jnt',
+        'CC_Base_R_Ring3': 'right_ring03_jnt',
+        'CC_Base_R_Thumb1': 'right_thumb01_jnt',
+        'CC_Base_R_Thumb2': 'right_thumb02_jnt',
+        'CC_Base_R_Thumb3': 'right_thumb03_jnt',
+        'CC_Base_L_Hand': 'left_wrist_jnt',
+        'CC_Base_L_Index1': 'left_index01_jnt',
+        'CC_Base_L_Index2': 'left_index02_jnt',
+        'CC_Base_L_Index3': 'left_index03_jnt',
+        'CC_Base_L_Mid1': 'left_middle01_jnt',
+        'CC_Base_L_Mid2': 'left_middle02_jnt',
+        'CC_Base_L_Mid3': 'left_middle03_jnt',
+        'CC_Base_L_Pinky1': 'left_pinky01_jnt',
+        'CC_Base_L_Pinky2': 'left_pinky02_jnt',
+        'CC_Base_L_Pinky3': 'left_pinky03_jnt',
+        'CC_Base_L_Ring1': 'left_ring01_jnt',
+        'CC_Base_L_Ring2': 'left_ring02_jnt',
+        'CC_Base_L_Ring3': 'left_ring03_jnt',
+        'CC_Base_L_Thumb1': 'left_thumb01_jnt',
+        'CC_Base_L_Thumb2': 'left_thumb02_jnt',
+        'CC_Base_L_Thumb3': 'left_thumb03_jnt'
+    }.items()}
+    for gt_name, accurig_name in joint_map_backward.items():
+        if cmds.objExists(gt_name):
+            cmds.rename(gt_name, accurig_name)
+    print(">>> Rename to Original Completed")
+
+# ---------------------------------------------
+# BUTTON 3 SCRIPT: Snap Proxy to Body
+# ---------------------------------------------
+def snapProxyToBody():
+    proxy_to_accurig = {
+        # Body Center
+        "waist_proxy": "CC_Base_Pelvis",
+        "chest_proxy": "CC_Base_Spine02",
+        "neckBase_proxy": "CC_Base_NeckTwist01",
+        "head_proxy": "CC_Base_Head",
+        "neckMid_proxy": "CC_Base_NeckTwist02",
+        "jaw_proxy": "CC_Base_JawRoot",
+
+        # Spine proxies
+        "spine01_proxy": "waist_proxy",
+        "spine02_proxy": "CC_Base_Waist",
+        "spine03_proxy": "CC_Base_Spine01",
+
+        # Hips / Thigh
+        "right_hip_proxy": "CC_Base_R_Thigh",
+        "left_hip_proxy": "CC_Base_L_Thigh",
+
+        # Ankles / Foot
+        "right_ankle_proxy": "CC_Base_R_Foot",
+        "left_ankle_proxy": "CC_Base_L_Foot",
+        "right_ball_proxy": "CC_Base_R_ToeBase",
+        "left_ball_proxy": "CC_Base_L_ToeBase",
+        "right_knee_proxy": "CC_Base_R_KneeShareBone",
+        "left_knee_proxy": "CC_Base_L_KneeShareBone",
+
+        # Clavicle
+        "right_clavicle_proxy": "CC_Base_R_Clavicle",
+        "left_clavicle_proxy": "CC_Base_L_Clavicle",
+
+        # Shoulders
+        "right_shoulder_proxy": "CC_Base_R_Upperarm",
+        "left_shoulder_proxy": "CC_Base_L_Upperarm",
+
+        # Hands
+        "right_wrist_proxy": "CC_Base_R_Hand",
+        "left_wrist_proxy": "CC_Base_L_Hand",
+
+        # Eyes
+        "right_eye_proxy": "CC_Base_R_Eye",
+        "left_eye_proxy": "CC_Base_L_Eye",
+    }
+
+    # ----------------------------
+    # Default proxy snapping
+    # ----------------------------
+    for proxy, bone in proxy_to_accurig.items():
+        if cmds.objExists(proxy) and cmds.objExists(bone):
+            pos = cmds.xform(bone, q=True, ws=True, t=True)
+            cmds.xform(proxy, ws=True, t=pos)
+            print(f"[SNAP] {proxy} -> {bone}")
+        else:
+            print(f"[MISSING] {proxy if not cmds.objExists(proxy) else bone}")
+
+    # ----------------------------
+    # Custom Pelvis: center between hips
+    # ----------------------------
+    if cmds.objExists("pelvis_proxy") and cmds.objExists("right_hip_proxy") and cmds.objExists("left_hip_proxy"):
+        right_pos = cmds.xform("right_hip_proxy", q=True, ws=True, t=True)
+        left_pos = cmds.xform("left_hip_proxy", q=True, ws=True, t=True)
+        pelvis_pos = [
+            (right_pos[0] + left_pos[0]) / 2,
+            right_pos[1],
+            right_pos[2]
+        ]
+        cmds.xform("pelvis_proxy", ws=True, t=pelvis_pos)
+        print(">>> Pelvis proxy centered between hips")
+
+    # ----------------------------
+    # NEW: Elbow X-Only Alignment
+    elbow_map = {
+        "right_elbow_proxy": "CC_Base_R_Forearm",
+        "left_elbow_proxy": "CC_Base_L_Forearm",
+    }
+
+    for proxy, bone in elbow_map.items():
+        if cmds.objExists(proxy) and cmds.objExists(bone):
+            bone_pos = cmds.xform(bone, q=True, ws=True, t=True)
+            proxy_pos = cmds.xform(proxy, q=True, ws=True, t=True)
+
+            new_pos = [
+                bone_pos[0],
+                proxy_pos[1],
+                proxy_pos[2],
+            ]
+
+            cmds.xform(proxy, ws=True, t=new_pos)
+            print(f"[ELBOW-X] {proxy} X aligned to {bone}")
+
+        else:
+            print(f"[MISSING] {proxy if not cmds.objExists(proxy) else bone}")
+
+    # -------------------------------------
+    # FIX: Reset local translateY properly
+    # -------------------------------------
+    for proxy in ["right_elbow_proxy", "left_elbow_proxy"]:
+        if cmds.objExists(proxy):
+            cmds.setAttr(proxy + ".translateY", 0)
+            print(f"[ELBOW-Y=0] {proxy}.translateY = 0")
+
+    print(">>> Snap Proxy to Body Completed")
+
+
+# ---------------------------------------------
+# BUTTON 4 SCRIPT: Snap Proxy to Hands / Fingers
+# ---------------------------------------------
+def snapProxyToHands():
+
+    def align_thumb_proxy(proxy, joint):
+        jm = om.MMatrix(cmds.xform(joint, q=True, ws=True, m=True))
+        jmt = om.MTransformationMatrix(jm)
+
+        jointX = om.MVector(jm[0], jm[1], jm[2])
+        jointY = om.MVector(jm[4], jm[5], jm[6])
+        jointZ = om.MVector(jm[8], jm[9], jm[10])
+
+        is_left = "left" in joint.lower()
+
+        if is_left:
+            proxyY = (-jointZ).normal()
+            proxyX = (-jointX).normal()
+        else:
+            proxyY = jointZ.normal()
+            proxyX = jointX.normal()
+
+        proxyZ = proxyX ^ proxyY
+
+        newMat = om.MMatrix([
+            proxyX.x, proxyX.y, proxyX.z, 0,
+            proxyY.x, proxyY.y, proxyY.z, 0,
+            proxyZ.x, proxyZ.y, proxyZ.z, 0,
+            jmt.translation(om.MSpace.kWorld).x,
+            jmt.translation(om.MSpace.kWorld).y,
+            jmt.translation(om.MSpace.kWorld).z,
+            1
+        ])
+
+        cmds.xform(proxy, ws=True, m=list(newMat))
+
+    # ---------------------------------------
+    # Finger mapping
+    # ---------------------------------------
+    proxy_to_bone = {
+        # Right Fingers
+        "right_index01_proxy": "CC_Base_R_Index1",
+        "right_index02_proxy": "CC_Base_R_Index2",
+        "right_index03_proxy": "CC_Base_R_Index3",
+        "right_middle01_proxy": "CC_Base_R_Mid1",
+        "right_middle02_proxy": "CC_Base_R_Mid2",
+        "right_middle03_proxy": "CC_Base_R_Mid3",
+        "right_ring01_proxy": "CC_Base_R_Ring1",
+        "right_ring02_proxy": "CC_Base_R_Ring2",
+        "right_ring03_proxy": "CC_Base_R_Ring3",
+        "right_pinky01_proxy": "CC_Base_R_Pinky1",
+        "right_pinky02_proxy": "CC_Base_R_Pinky2",
+        "right_pinky03_proxy": "CC_Base_R_Pinky3",
+
+        # Left Fingers
+        "left_index01_proxy": "CC_Base_L_Index1",
+        "left_index02_proxy": "CC_Base_L_Index2",
+        "left_index03_proxy": "CC_Base_L_Index3",
+        "left_middle01_proxy": "CC_Base_L_Mid1",
+        "left_middle02_proxy": "CC_Base_L_Mid2",
+        "left_middle03_proxy": "CC_Base_L_Mid3",
+        "left_ring01_proxy": "CC_Base_L_Ring1",
+        "left_ring02_proxy": "CC_Base_L_Ring2",
+        "left_ring03_proxy": "CC_Base_L_Ring3",
+        "left_pinky01_proxy": "CC_Base_L_Pinky1",
+        "left_pinky02_proxy": "CC_Base_L_Pinky2",
+        "left_pinky03_proxy": "CC_Base_L_Pinky3",
+    }
+
+    thumb_pairs = [
+        ("right_thumb01_proxy", "CC_Base_R_Thumb1"),
+        ("right_thumb02_proxy", "CC_Base_R_Thumb2"),
+        ("right_thumb03_proxy", "CC_Base_R_Thumb3"),
+        ("left_thumb01_proxy", "CC_Base_L_Thumb1"),
+        ("left_thumb02_proxy", "CC_Base_L_Thumb2"),
+        ("left_thumb03_proxy", "CC_Base_L_Thumb3"),
+    ]
+
+    # ---------------------------------------
+    # Snap thumbs (with orientation)
+    # ---------------------------------------
+    for proxy, joint in thumb_pairs:
+        if cmds.objExists(proxy) and cmds.objExists(joint):
+            align_thumb_proxy(proxy, joint)
+        else:
+            print(f"[MISSING THUMB] {proxy} or {joint}")
+
+    # ---------------------------------------
+    # Snap fingers (position only)
+    # ---------------------------------------
+    for proxy, joint in proxy_to_bone.items():
+        if cmds.objExists(proxy) and cmds.objExists(joint):
+            pos = cmds.xform(joint, q=True, ws=True, t=True)
+            cmds.xform(proxy, ws=True, t=pos)
+        else:
+            print(f"[MISSING FINGER] {proxy} or {joint}")
+
+    # ---------------------------------------
+    # Fix end thumb translateZ after snapping
+    # ---------------------------------------
+    end_proxies = [
+        "right_thumb04_endProxy",
+        "left_thumb04_endProxy"
+    ]
+
+    for obj in end_proxies:
+        if cmds.objExists(obj):
+            try:
+                cmds.setAttr(obj + ".translateZ", -8)
+                print("Adjusted translateZ to -8 for:", obj)
+            except Exception as e:
+                print("Failed to modify", obj, "Error:", e)
+        else:
+            print(obj, "not found. Skipped.")
+
+    # ---------------------------------------
+    # FINAL MESSAGE (now truly last)
+    # ---------------------------------------
+    print(">>> Snap Proxy to Hands Completed")
+
+
+
+# ---------------------------------------------
+# BUTTON 5: CREATE TWIST BONES
+# ---------------------------------------------
+def createTwistBonesButton(*args):
+    """
+    Creates twist hierarchies (twist01/twist02) with:
+    - Stretch-safe start_loc / end_loc that FOLLOW their corresponding joints
+      (start_loc follows source_jnt, end_loc follows end_jnt)
+    - Anti-scale group (prevents helper locators from inheriting scale)
+    - NO GT-Tool _posLoc (removed per request)
+    - twist01 / twist02 behavior unchanged
+    """
+    import maya.cmds as cmds
+
+    def create_twist_hierarchy(source_jnt,
+                               twist01_suffix="_twist01_jnt",
+                               twist02_suffix="_twist02_jnt",
+                               fraction=0.5):
+
+        if not cmds.objExists(source_jnt):
+            print(f"Joint does not exist: {source_jnt}")
+            return None
+
+        # ------------------------------
+        # Ensure the end joint exists
+        # ------------------------------
+        children = cmds.listRelatives(source_jnt, type='joint')
+        if not children:
+            cmds.warning(f"{source_jnt} has no child. Creating dummy child.")
+            end_jnt = cmds.duplicate(source_jnt, parentOnly=True)[0]
+            cmds.setAttr(end_jnt + ".translateX", 1.0)
+            cmds.parent(end_jnt, source_jnt)
+        else:
+            end_jnt = children[0]
+
+        # ------------------------------
+        # Duplicate twist joints
+        # ------------------------------
+        twist01 = cmds.duplicate(source_jnt, parentOnly=True, name=source_jnt + twist01_suffix)[0]
+        cmds.parent(twist01, source_jnt)
+        cmds.makeIdentity(twist01, apply=True, rotate=True)
+
+        twist02 = cmds.duplicate(source_jnt, parentOnly=True, name=source_jnt + twist02_suffix)[0]
+        cmds.parent(twist02, twist01)
+        cmds.makeIdentity(twist02, apply=True, rotate=True)
+
+        # ------------------------------
+        # Create helper group
+        # ------------------------------
+        helper_grp = cmds.group(empty=True, name=source_jnt + "_twist_helpers_grp")
+        cmds.setAttr(helper_grp + ".visibility", 0)
+
+        # ------------------------------
+        # Create anti-scale group
+        # ------------------------------
+        anti_scale_grp = cmds.group(empty=True, name=source_jnt + "_antiScale_grp")
+        # snap anti-scale to source_jnt
+        cmds.delete(cmds.parentConstraint(source_jnt, anti_scale_grp, mo=False))
+
+        # parent helper into anti-scale
+        cmds.parent(helper_grp, anti_scale_grp)
+
+        # parent anti-scale to the main joint
+        cmds.parent(anti_scale_grp, source_jnt)
+
+        # Connect translate/rotate only (NO SCALE)
+        # Using connectAttr so anti_scale_grp follows translate/rotate but not scale
+        try:
+            # if already connected, avoid duplicate connections
+            if not cmds.listConnections(source_jnt + ".translate", d=False, s=True):
+                cmds.connectAttr(source_jnt + ".translate", anti_scale_grp + ".translate")
+            if not cmds.listConnections(source_jnt + ".rotate", d=False, s=True):
+                cmds.connectAttr(source_jnt + ".rotate", anti_scale_grp + ".rotate")
+        except Exception:
+            # fallback: use parentConstraint (translation+rotation) then break scale
+            cmds.parentConstraint(source_jnt, anti_scale_grp, mo=True)
+
+        # ------------------------------
+        # Locators for stretch-based twist (FOLLOW their joints)
+        # ------------------------------
+        start_loc = cmds.spaceLocator(name=source_jnt + "_start_loc")[0]
+        end_loc = cmds.spaceLocator(name=end_jnt + "_end_loc")[0]
+
+        # snap locators to joint positions
+        cmds.xform(start_loc, ws=True, t=cmds.xform(source_jnt, q=True, ws=True, t=True))
+        cmds.xform(end_loc, ws=True, t=cmds.xform(end_jnt, q=True, ws=True, t=True))
+
+        # parent locators under helper (which sits under anti_scale_grp)
+        cmds.parent(start_loc, helper_grp)
+        cmds.parent(end_loc, helper_grp)
+
+        # Make locators FOLLOW their joints (translate + rotate only)
+        # Use pointConstraint + orientConstraint (no scale connection)
+        p1 = cmds.pointConstraint(source_jnt, start_loc, mo=False)[0]
+        o1 = cmds.orientConstraint(source_jnt, start_loc, mo=False)[0]
+        p2 = cmds.pointConstraint(end_jnt, end_loc, mo=False)[0]
+        o2 = cmds.orientConstraint(end_jnt, end_loc, mo=False)[0]
+        # parent constraint nodes under helper for cleanliness
+        cmds.parent(p1, helper_grp)
+        cmds.parent(o1, helper_grp)
+        cmds.parent(p2, helper_grp)
+        cmds.parent(o2, helper_grp)
+
+        # ------------------------------
+        # Prevent scale inheritance / accidental scaling on locators
+        # ------------------------------
+        for loc in (start_loc, end_loc):
+            for axis in ("X", "Y", "Z"):
+                cmds.setAttr(f"{loc}.scale{axis}", lock=True, keyable=False, channelBox=False)
+
+        # ------------------------------
+        # Point constraint twist02 between start & end (stretch-safe)
+        # ------------------------------
+        pcon = cmds.pointConstraint([start_loc, end_loc], twist02, mo=False)[0]
+        cmds.setAttr(pcon + ".w0", 1 - fraction)
+        cmds.setAttr(pcon + ".w1", fraction)
+        cmds.parent(pcon, helper_grp)
+
+        # ------------------------------
+        # Unlock channels for twist joints
+        # ------------------------------
+        for j in [twist01, twist02]:
+            for attr in ['translateX','translateY','translateZ','rotateY','rotateZ','scaleX','scaleY','scaleZ']:
+                cmds.setAttr(j + "." + attr, lock=False, keyable=True)
+
+        print(f"Twist hierarchy created for {source_jnt}")
+        return twist01, twist02, helper_grp, start_loc, end_loc, pcon
+
+    # -------------------------------------
+    # Create twists for each side
+    # -------------------------------------
+    sides = ["left", "right"]
+    bases = ["shoulder", "hip", "knee"]
+
+    for side in sides:
+        for base in bases:
+            jnt = f"{side}_{base}_jnt"
+            if cmds.objExists(jnt):
+                print(f"Creating twist: {jnt}")
+                create_twist_hierarchy(jnt)
+            else:
+                print(f"[MISSING] {jnt}")
+
+    print(">>> Twist bones created (posLoc removed). start_loc and end_loc now follow their joints and will not drift when scaling.")
+
+
+
+# ---------------------------------------------
+# BUTTON 6: SELECT SKINNING JOINTS
+# ---------------------------------------------
+def select_skinning_joints():
+    selected_objects = [
+        'pelvis_jnt', 'left_hip_jnt', 'left_knee_jnt', 'left_ankle_jnt', 'left_ball_jnt',
+        'left_knee_jnt_twist01_jnt', 'left_knee_jnt_twist02_jnt', 'left_hip_jnt_twist01_jnt',
+        'left_hip_jnt_twist02_jnt', 'right_hip_jnt', 'right_knee_jnt', 'right_ankle_jnt',
+        'right_ball_jnt', 'right_knee_jnt_twist01_jnt', 'right_knee_jnt_twist02_jnt',
+        'right_hip_jnt_twist01_jnt', 'right_hip_jnt_twist02_jnt', 'waist_jnt', 'spine01_jnt',
+        'spine02_jnt', 'spine03_jnt', 'chest_jnt', 'neckBase_jnt', 'neckMid_jnt', 'head_jnt',
+        'left_eye_jnt', 'right_eye_jnt', 'jaw_jnt', 'left_clavicle_jnt', 'left_shoulder_jnt',
+        'left_elbow_jnt', 'left_wrist_jnt', 'left_thumb01_jnt', 'left_thumb02_jnt',
+        'left_thumb03_jnt', 'left_index01_jnt', 'left_index02_jnt', 'left_index03_jnt',
+        'left_middle01_jnt', 'left_middle02_jnt', 'left_middle03_jnt', 'left_ring01_jnt',
+        'left_ring02_jnt', 'left_ring03_jnt', 'left_pinky01_jnt', 'left_pinky02_jnt',
+        'left_pinky03_jnt', 'left_forearm_jnt', 'left_shoulder_jnt_twist01_jnt',
+        'left_shoulder_jnt_twist02_jnt', 'right_clavicle_jnt', 'right_shoulder_jnt',
+        'right_elbow_jnt', 'right_wrist_jnt', 'right_thumb01_jnt', 'right_thumb02_jnt',
+        'right_thumb03_jnt', 'right_index01_jnt', 'right_index02_jnt', 'right_index03_jnt',
+        'right_middle01_jnt', 'right_middle02_jnt', 'right_middle03_jnt', 'right_ring01_jnt',
+        'right_ring02_jnt', 'right_ring03_jnt', 'right_pinky01_jnt', 'right_pinky02_jnt',
+        'right_pinky03_jnt', 'right_forearm_jnt', 'right_shoulder_jnt_twist01_jnt',
+        'right_shoulder_jnt_twist02_jnt'
+    ]
+
+    existing = [obj for obj in selected_objects if cmds.objExists(obj)]
+
+    if not existing:
+        cmds.warning("None of the specified joints exist in the scene.")
+        return
+
+    cmds.select(existing, r=True)
+    print(">>> Selected {} joints successfully.".format(len(existing)))
+
+
+# ---------------------------------------------
+# UI INTEGRATION (Button 6)
+# ---------------------------------------------
+def openMyRiggerUI():
+    if cmds.window("myToolsUI", exists=True):
+        cmds.deleteUI("myToolsUI")
+
+    win = cmds.window("myToolsUI", title="Accurig", widthHeight=(250, 330), sizeable=False)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=12)
+
+    cmds.frameLayout(label="Accurig Mapping", collapsable=False, labelVisible=True)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=10)
+
+    def addToolButton(label, command, helpKey):
+        cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnWidth2=(270, 50))
+        cmds.button(label=label, height=40, command=lambda *args: command())
+        cmds.iconTextButton(
+            style="iconOnly",
+            image="help.png",
+            width=40, height=40,
+            command=lambda *args: showHelp(helpKey)
+        )
+        cmds.setParent("..")
+
+    addToolButton("1. Rename to GT Tools", renameProxy, "rename")
+    addToolButton("2. Rename to Original", renameToOriginal, "renameOriginal")
+    addToolButton("3. Snapping Proxy to Body", snapProxyToBody, "snapBody")
+    addToolButton("4. Snapping Proxy to Hands", snapProxyToHands, "snapHands")
+    addToolButton("5. Create Twist Bones", createTwistBonesButton, "createTwist")
+    addToolButton("6. Select Skinning Joints", select_skinning_joints, "skinJnt")
+
+    cmds.setParent("..")
+    cmds.setParent("..")
+    cmds.showWindow(win)
+
+# Run UI
+openMyRiggerUI()
