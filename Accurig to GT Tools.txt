@@ -10,6 +10,7 @@ HELP_TEXT = {
     "snapBody": "Snaps all proxies to AccuRig bones, including pelvis centering.",
     "snapHands": "Snaps all hand and finger proxies, aligns thumbs with proper orientation.",
     "createTwist": "Creates twist bones for shoulders, hips, and knees with helper groups.",
+    "constJn": "Constraint Accurig to GT Tools joints to use it controllers for animations.",
     "skinJnt": "Select skinning joints only (exclude endJnt and root) to ",
 }
 
@@ -551,9 +552,203 @@ def createTwistBonesButton(*args):
     print(">>> Twist bones created (posLoc removed). start_loc and end_loc now follow their joints and will not drift when scaling.")
 
 
+# ---------------------------------------------
+# BUTTON 6: CONSTRAINT TO JOINTS
+# ---------------------------------------------
+def constraint_to_joints():
+    """
+    GUI Button Function: Creates parent constraints between source and target joints,
+    groups them, and parents the group into 'rig_setup_grp' (if exists).
+    """
+    # Define your mapping — target ? source
+    mapping = {
+       'right_ankle_jnt': 'CC_Base_R_Foot',
+'right_ball_jnt': 'CC_Base_R_ToeBase',
+'left_ankle_jnt': 'CC_Base_L_Foot',
+'left_ball_jnt': 'CC_Base_L_ToeBase',
+'right_knee_jnt': 'CC_Base_R_Calf',
+'right_knee_jnt_twist01_jnt': 'CC_Base_R_CalfTwist01',
+'right_knee_jnt_twist02_jnt': 'CC_Base_R_CalfTwist02',
+'left_knee_jnt': 'CC_Base_L_Calf',
+'left_knee_jnt_twist01_jnt': 'CC_Base_L_CalfTwist01',
+'left_knee_jnt_twist02_jnt': 'CC_Base_L_CalfTwist02',
+'right_hip_jnt': 'CC_Base_R_Thigh',
+'right_hip_jnt_twist01_jnt': 'CC_Base_R_ThighTwist01',
+'right_hip_jnt_twist02_jnt': 'CC_Base_R_ThighTwist02',
+'left_hip_jnt': 'CC_Base_L_Thigh',
+'left_hip_jnt_twist01_jnt': 'CC_Base_L_ThighTwist01',
+'left_hip_jnt_twist02_jnt': 'CC_Base_L_ThighTwist02',
+'spine02_jnt': 'CC_Base_Waist',
+'spine03_jnt': 'CC_Base_Spine01',
+'waist_jnt': 'CC_Base_Hip',
+'chest_jnt': 'CC_Base_Spine02',
+'neckBase_jnt': 'CC_Base_NeckTwist01',
+'neckMid_jnt': 'CC_Base_NeckTwist02',
+'head_jnt': 'CC_Base_Head',
+'right_clavicle_jnt': 'CC_Base_R_Clavicle',
+'right_shoulder_jnt': 'CC_Base_R_Upperarm',
+'right_shoulder_jnt_twist01_jnt': 'CC_Base_R_UpperarmTwist01',
+'right_shoulder_jnt_twist02_jnt': 'CC_Base_R_UpperarmTwist02',
+'right_elbow_jnt': 'CC_Base_R_Forearm',
+'right_forearm_jnt': 'CC_Base_R_ForearmTwist02',
+'left_clavicle_jnt': 'CC_Base_L_Clavicle',
+'left_shoulder_jnt': 'CC_Base_L_Upperarm',
+'left_shoulder_jnt_twist01_jnt': 'CC_Base_L_UpperarmTwist01',
+'left_shoulder_jnt_twist02_jnt': 'CC_Base_L_UpperarmTwist02',
+'left_elbow_jnt': 'CC_Base_L_Forearm',
+'left_forearm_jnt': 'CC_Base_L_ForearmTwist02',
+'right_wrist_jnt': 'CC_Base_R_Hand',
+'right_index01_jnt': 'CC_Base_R_Index1',
+'right_index02_jnt': 'CC_Base_R_Index2',
+'right_index03_jnt': 'CC_Base_R_Index3',
+'right_middle01_jnt': 'CC_Base_R_Mid1',
+'right_middle02_jnt': 'CC_Base_R_Mid2',
+'right_middle03_jnt': 'CC_Base_R_Mid3',
+'right_pinky01_jnt': 'CC_Base_R_Pinky1',
+'right_pinky02_jnt': 'CC_Base_R_Pinky2',
+'right_pinky03_jnt': 'CC_Base_R_Pinky3',
+'right_ring01_jnt': 'CC_Base_R_Ring1',
+'right_ring02_jnt': 'CC_Base_R_Ring2',
+'right_ring03_jnt': 'CC_Base_R_Ring3',
+'right_thumb01_jnt': 'CC_Base_R_Thumb1',
+'right_thumb02_jnt': 'CC_Base_R_Thumb2',
+'right_thumb03_jnt': 'CC_Base_R_Thumb3',
+'left_wrist_jnt': 'CC_Base_L_Hand',
+'left_index01_jnt': 'CC_Base_L_Index1',
+'left_index02_jnt': 'CC_Base_L_Index2',
+'left_index03_jnt': 'CC_Base_L_Index3',
+'left_middle01_jnt': 'CC_Base_L_Mid1',
+'left_middle02_jnt': 'CC_Base_L_Mid2',
+'left_middle03_jnt': 'CC_Base_L_Mid3',
+'left_pinky01_jnt': 'CC_Base_L_Pinky1',
+'left_pinky02_jnt': 'CC_Base_L_Pinky2',
+'left_pinky03_jnt': 'CC_Base_L_Pinky3',
+'left_ring01_jnt': 'CC_Base_L_Ring1',
+'left_ring02_jnt': 'CC_Base_L_Ring2',
+'left_ring03_jnt': 'CC_Base_L_Ring3',
+'left_thumb01_jnt': 'CC_Base_L_Thumb1',
+'left_thumb02_jnt': 'CC_Base_L_Thumb2',
+'left_thumb03_jnt': 'CC_Base_L_Thumb3',
+'jaw_jnt': 'CC_Base_JawRoot',
+'left_eye_jnt': 'CC_Base_L_Eye',
+'right_eye_jnt': 'CC_Base_R_Eye'
+    }
+
+    # Step 1: Run constraint creation
+    result = constraint_to_jnt_dict(mapping)
+
+    # Step 2: Update constraint_list for grouping
+    constraint_list = result["parent_constraints"]
+
+    # Step 3: Create group and parent constraints
+    group_name = "Constraint_to_jnt"
+    if cmds.objExists(group_name):
+        cmds.delete(group_name)
+
+    group = cmds.group(empty=True, name=group_name)
+
+    for constraint in constraint_list:
+        if cmds.objExists(constraint):
+            cmds.parent(constraint, group)
+
+    # Step 4: Parent group into rig_setup_grp
+    parent_group = "rig_setup_grp"
+    if not cmds.objExists(parent_group):
+        cmds.error(f"Parent group '{parent_group}' does not exist. Please create it first.")
+    else:
+        cmds.parent(group, parent_group)
+
+    # Step 5: Hide the group
+    cmds.setAttr(group + ".visibility", 0)
+
+    print(f"? Group '{group}' created, parented into '{parent_group}', and hidden.")
+
+    # Optional: Also run parent_RL_BoneRoot_to_root_jnt()
+    parent_RL_BoneRoot_to_root_jnt()
+
 
 # ---------------------------------------------
-# BUTTON 6: SELECT SKINNING JOINTS
+# UTILITY FUNCTION: CREATE PARENT CONSTRAINTS
+# ---------------------------------------------
+def constraint_to_jnt_dict(target_to_source_map):
+    """
+    Constraints source joints to target joints using:
+    - Parent constraint (translation/rotation)
+
+    Args:
+        target_to_source_map (dict): Dictionary mapping target joint names to source joint names.
+        Example:
+            {
+                'CC_Base_R_Foot': 'right_ankle_jnt',
+                'CC_Base_L_Foot': 'left_ankle_jnt',
+                'CC_Base_R_ToeBase': 'right_ball_jnt',
+                'CC_Base_L_ToeBase': 'left_ball_jnt'
+            }
+
+    Returns:
+        dict: Contains one key:
+            'parent_constraints' ? list of parentConstraint node names
+    """
+    # Validate input
+    if not isinstance(target_to_source_map, dict):
+        raise TypeError("target_to_source_map must be a dictionary.")
+
+    # Initialize return containers
+    parent_constraints = []
+
+    # Process each target ? source pair
+    for target_jnt, source_jnt in target_to_source_map.items():
+        # Validate existence
+        if not cmds.objExists(target_jnt):
+            print(f"?? Skipping target '{target_jnt}' — it does not exist.")
+            continue
+        if not cmds.objExists(source_jnt):
+            print(f"?? Skipping source '{source_jnt}' — it does not exist.")
+            continue
+
+        # Create parent constraint
+        parent_con = cmds.parentConstraint(
+            target_jnt, source_jnt,
+            mo=True  # maintain offset
+        )[0]
+
+        # Append to list
+        parent_constraints.append(parent_con)
+
+        print(f"? Constrained '{source_jnt}' to '{target_jnt}'")
+        print(f"   ? Parent constraint: {parent_con}")
+
+    # Return results
+    return {
+        "parent_constraints": parent_constraints
+    }
+
+
+# ---------------------------------------------
+# UTILITY FUNCTION: PARENT RL_BONE_ROOT TO ROOT_JNT
+# ---------------------------------------------
+def parent_RL_BoneRoot_to_root_jnt():
+    rl_bone_root = "RL_BoneRoot"
+    root_jnt = "root_jnt"
+
+    # Check if both nodes exist
+    if not cmds.objExists(rl_bone_root):
+        print(f"Node '{rl_bone_root}' does not exist.")
+        return
+
+    if not cmds.objExists(root_jnt):
+        print(f"Node '{root_jnt}' does not exist.")
+        return
+
+    # Parent RL_BoneRoot to root_jnt
+    cmds.parent(rl_bone_root, root_jnt)
+
+    print(f"Successfully parented '{rl_bone_root}' under '{root_jnt}'.")
+
+
+
+# ---------------------------------------------
+# BUTTON 7: SELECT SKINNING JOINTS
 # ---------------------------------------------
 def select_skinning_joints():
     selected_objects = [
@@ -587,15 +782,26 @@ def select_skinning_joints():
     cmds.select(existing, r=True)
     print(">>> Selected {} joints successfully.".format(len(existing)))
 
+# ---------------------------------------------
+# HELP POPUP WINDOW
+# ---------------------------------------------
+def showHelp(topic, *args):
+    cmds.confirmDialog(
+        title="Help",
+        message=HELP_TEXT.get(topic, "No help available."),
+        button=["OK"],
+        icon="information"
+    )
+
 
 # ---------------------------------------------
-# UI INTEGRATION (Button 6)
+# UI INTEGRATION (Button 7)
 # ---------------------------------------------
 def openMyRiggerUI():
     if cmds.window("myToolsUI", exists=True):
         cmds.deleteUI("myToolsUI")
 
-    win = cmds.window("myToolsUI", title="Accurig", widthHeight=(250, 330), sizeable=False)
+    win = cmds.window("myToolsUI", title="Accurig", widthHeight=(250, 380), sizeable=False)
     cmds.columnLayout(adjustableColumn=True, rowSpacing=12)
 
     cmds.frameLayout(label="Accurig Mapping", collapsable=False, labelVisible=True)
@@ -617,7 +823,8 @@ def openMyRiggerUI():
     addToolButton("3. Snapping Proxy to Body", snapProxyToBody, "snapBody")
     addToolButton("4. Snapping Proxy to Hands", snapProxyToHands, "snapHands")
     addToolButton("5. Create Twist Bones", createTwistBonesButton, "createTwist")
-    addToolButton("6. Select Skinning Joints", select_skinning_joints, "skinJnt")
+    addToolButton("6. Constraint to Joints", constraint_to_joints, "constJnt")
+    addToolButton("7. Select Skinning Joints", select_skinning_joints, "skinJnt")
 
     cmds.setParent("..")
     cmds.setParent("..")
