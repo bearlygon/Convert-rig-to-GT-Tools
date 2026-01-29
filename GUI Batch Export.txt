@@ -1,0 +1,754 @@
+# ============================================================
+# GT Batch Animation Exporter (GUI)
+# Supports: .anim (Script 1) and .fbx (Script 2)
+# ============================================================
+
+import maya.api.OpenMaya as OpenMaya
+import maya.cmds as cmds
+import maya.mel as mel
+import traceback
+import logging
+import random
+import json
+import copy
+import sys
+import os
+import re
+
+# ------------------------------------------------------------
+# IMPORT SCRIPT 2 DEPENDENCIES
+# ------------------------------------------------------------
+
+from collections import namedtuple
+from functools import partial
+
+# find_item
+def find_item(name, item_type, log_fail=True):
+    """
+    Find object according to name and type
+    Args:
+        name: Name of the object to search for
+        item_type: Type of the object (to narrow search)
+        log_fail: Whether it should log a fail message
+
+    Returns: Object name (if found) or NOne if it doesn't exist
+
+    """
+    all_of_type = cmds.ls(type=item_type) or []
+    for obj in all_of_type:
+        if obj.split(':')[-1] == name:
+            return obj
+    if log_fail:
+        logger.warning("Couldn't find {item} of type {typ}".format(item=name, typ=item_type))
+#
+def get_named_attr(object_name, attribute_name):
+    """
+    return the attribute if it exists
+    Args:
+        object_name: <str>
+        attribute_name: <str>
+
+    Returns:
+
+    """
+    if not cmds.objExists(object_name + '.' + attribute_name):
+        logger.warning("Couldn't find " + object_name + "." + attribute_name + " in the scene")
+        return
+    return cmds.getAttr(object_name + '.' + attribute_name)
+# find_joints and find_transform
+find_transform = partial(find_item, item_type='transform')
+find_joint = partial(find_item, item_type='joint')
+# get_metadata
+def get_metadata(object_name):
+    """
+    Looks for the metadata attribute on an object and then returns it as a dictionary
+    Args:
+        object_name:<str> name of the object to use as a search basis
+
+    Returns:
+        <dict> the metadata
+        if the object doesn't exist, returns None
+    """
+    _metadata_string = get_named_attr(object_name, 'metadata')
+    if not _metadata_string:
+        logger.warning("Can't get the metadata to decode")
+        return
+    return json.loads(str(_metadata_string))
+# select_items
+def select_items(*args):
+    to_select = make_flat_list(args)
+    cmds.select(to_select)
+# get_chilren
+def get_children(root):
+    return cmds.listRelatives(root, children=True)
+# make_flat_list
+def make_flat_list(*args):
+    """
+    Return a single list of all the items, essentially merging lists and single object into one list.
+    Args:
+        *args: comma sep list of items and lists of items
+
+    Returns:
+        flat item list
+    """
+    _flat = []
+    for _arg in args:
+        if isinstance(_arg, str):
+            _flat.append(_arg)
+        elif hasattr(_arg, "__iter__"):
+            for _item in _arg:
+                _flat.extend(make_flat_list(_item))
+        else:
+            _flat.append(_arg)
+    return _flat
+
+
+# ------------------------------------------------------------
+# LOGGER
+# ------------------------------------------------------------
+
+logging.basicConfig()
+logger = logging.getLogger("gt_batch_exporter")
+logger.setLevel(logging.INFO)
+
+# ------------------------------------------------------------
+# GLOBAL STATE (GUI DRIVEN)
+# ------------------------------------------------------------
+
+BATCH_MA_DIR = ""
+OUTPUT_DIR = ""
+EXPORT_TYPE = ".fbx"
+NAMESPACE = ""
+
+FILE_EXTENSION = ".anim"
+MA_EXTENSION = ".ma"
+
+SCRIPT_VERSION = "Merged-1.0"
+
+# ============================================================
+# ---------------------- SCRIPT 1 -----------------------------
+# ============================================================
+# ============================================================
+# MIRROR DEFINITIONS
+# ============================================================
+
+namespace_separator = ":"
+#left_prefix = "left"
+#right_prefix = "right"
+LEFT_PREFIX = "left"
+RIGHT_PREFIX = "right"
+
+not_inverted = (False, False, False)
+invert_x = (True, False, False)
+invert_y = (False, True, False)
+invert_z = (False, False, True)
+invert_yz = (False, True, True)
+invert_all = (True, True, True)
+
+# ============================================================
+# CONTROL LISTS
+# ============================================================
+
+biped_general_ctrls = {  # Fingers Automation
+    "_fingers_ctrl": [not_inverted, not_inverted, True],
+    "_thumbCurl_ctrl": [not_inverted, not_inverted],
+    "_indexCurl_ctrl": [not_inverted, not_inverted],
+    "_middleCurl_ctrl": [not_inverted, not_inverted],
+    "_ringCurl_ctrl": [not_inverted, not_inverted],
+    "_pinkyCurl_ctrl": [not_inverted, not_inverted],
+    # Fingers FK
+    "_thumb03_ctrl": [not_inverted, not_inverted],
+    "_thumb02_ctrl": [not_inverted, not_inverted],
+    "_thumb01_ctrl": [not_inverted, not_inverted],
+    "_index01_ctrl": [not_inverted, not_inverted],
+    "_middle02_ctrl": [not_inverted, not_inverted],
+    "_middle01_ctrl": [not_inverted, not_inverted],
+    "_index03_ctrl": [not_inverted, not_inverted],
+    "_index02_ctrl": [not_inverted, not_inverted],
+    "_ring03_ctrl": [not_inverted, not_inverted],
+    "_ring02_ctrl": [not_inverted, not_inverted],
+    "_ring01_ctrl": [not_inverted, not_inverted],
+    "_middle03_ctrl": [not_inverted, not_inverted],
+    "_pinky03_ctrl": [not_inverted, not_inverted],
+    "_pinky02_ctrl": [not_inverted, not_inverted],
+    "_pinky01_ctrl": [not_inverted, not_inverted],
+    # Finger IK
+    "_thumb_ik_ctrl": [invert_z, invert_x],
+    "_index_ik_ctrl": [invert_z, invert_x],
+    "_middle_ik_ctrl": [invert_z, invert_x],
+    "_ring_ik_ctrl": [invert_z, invert_x],
+    "_pinky_ik_ctrl": [invert_z, invert_x],
+    # Clavicle
+    "_clavicle_ctrl": [not_inverted, not_inverted],
+    # Eyes
+    "_eye_ctrl": [invert_x, not_inverted],
+    # Facial Side GUI Rig
+    "_innerBrow_offset_ctrl": [not_inverted, not_inverted],
+    "_midBrow_offset_ctrl": [not_inverted, not_inverted],
+    "_outerBrow_offset_ctrl": [not_inverted, not_inverted],
+    "_blinkEyelid_ctrl": [not_inverted, not_inverted],
+    "_upperEyelid_offset_ctrl": [not_inverted, not_inverted],
+    "_lowerEyelid_offset_ctrl": [not_inverted, not_inverted],
+    "_cheek_offset_ctrl": [not_inverted, not_inverted],
+    "_cheek_in_out_offset_ctrl": [not_inverted, not_inverted],
+    "_nose_offset_ctrl": [not_inverted, not_inverted],
+    "_cornerLip_offset_ctrl": [not_inverted, not_inverted],
+    "_upperOuterLip_offset_ctrl": [not_inverted, not_inverted],
+    "_upperCornerLip_offset_ctrl": [not_inverted, not_inverted],
+    "_lowerCornerLip_offset_ctrl": [not_inverted, not_inverted],
+    "_lowerOuterLip_offset_ctrl": [not_inverted, not_inverted],
+    # Facial Rig Ctrls
+    "_mainEyebrow_ctrl": [invert_all, invert_y],
+    "_innerBrow_ctrl": [invert_all, invert_y],
+    "_midBrow_ctrl": [invert_all, not_inverted],
+    "_outerBrow_ctrl": [invert_all, not_inverted],
+    "_upperEyelid_ctrl": [invert_z, not_inverted],
+    "_lowerEyelid_ctrl": [invert_z, not_inverted],
+    "_cheek_ctrl": [invert_z, not_inverted],
+    "_nose_ctrl": [invert_z, not_inverted],
+    "_cornerLip_ctrl": [invert_all, not_inverted],
+    "_upperCornerLip_ctrl": [invert_all, not_inverted],
+    "_lowerCornerLip_ctrl": [invert_all, not_inverted],
+    "_upperOuterLip_ctrl": [invert_all, not_inverted],
+    "_lowerOuterLip_ctrl": [invert_all, not_inverted],
+    # Corrective Ctrls
+    "_upperShoulder_driverJnt_ctrl": [invert_x, not_inverted],
+    "_backShoulder_driverJnt_ctrl": [invert_x, not_inverted],
+    "_frontShoulder_driverJnt_ctrl": [invert_x, not_inverted],
+    "_frontElbow_driverJnt_ctrl": [invert_x, not_inverted],
+    "_wrist_outfit_driverJnt_ctrl": [invert_all, not_inverted],
+    "_upperWrist_driverJnt_ctrl": [invert_z, not_inverted],
+    "_lowerWrist_driverJnt_ctrl": [invert_z, not_inverted],
+    "_outerHip_driverJnt_ctrl": [invert_x, not_inverted],
+    "_backHip_driverJnt_ctrl": [invert_x, not_inverted],
+    "_frontHip_driverJnt_ctrl": [invert_x, not_inverted],
+    "_backKnee_driverJnt_ctrl": [invert_x, not_inverted],
+    "_frontKnee_driverJnt_ctrl": [invert_x, not_inverted],
+}
+
+biped_ik_ctrls = {  # Arm
+    "_elbow_ik_ctrl": [invert_x, not_inverted],
+    # '_wrist_ik_ctrl': [invert_all, not_inverted],
+    # '_wrist_ik_offsetCtrl': [invert_all, not_inverted], # Add check
+    "_wrist_ik_ctrl": [not_inverted, not_inverted],
+    "_wrist_ik_offsetCtrl": [not_inverted, not_inverted],
+    # Leg
+    "_heelRoll_ctrl": [invert_x, not_inverted],
+    "_ballRoll_ctrl": [invert_x, not_inverted],
+    "_toeRoll_ctrl": [invert_x, not_inverted],
+    "_toe_upDown_ctrl": [invert_x, not_inverted],
+    # Extra Tuple: (world object, transform source)
+    "_foot_ik_ctrl": [invert_x, invert_yz, False, ("waist_offsetCtrl", "_foot_ik_offsetCtrl")],
+    "_foot_ik_offsetCtrl": [invert_x, invert_yz, False, ("waist_offsetCtrl", "_foot_ik_offsetCtrl")],
+    "_knee_ik_ctrl": [invert_x, not_inverted],
+    "_toe_ik_ctrl": [invert_x, invert_yz],
+}
+
+biped_ik_ctrls_default = copy.deepcopy(biped_ik_ctrls)
+biped_ik_offset_ctrls = ["_foot_ik_offsetCtrl"]  # Added "_wrist_ik_offsetCtrl" ?
+
+biped_fk_ctrls = {  # Arm
+    "_shoulder_ctrl": [invert_all, not_inverted],
+    "_elbow_ctrl": [invert_all, not_inverted],
+    "_wrist_ctrl": [invert_all, not_inverted],
+    # Leg
+    "_hip_ctrl": [invert_x, invert_yz],
+    "_knee_ctrl": [invert_all, not_inverted],
+    "_ankle_ctrl": [invert_all, not_inverted],
+    "_ball_ctrl": [invert_all, not_inverted],
+    "_eye_ctrl": [invert_x, not_inverted],
+}
+
+biped_center_ctrls = [
+    "cog_ctrl",
+    "cog_offsetCtrl",
+    "hip_ctrl",
+    "hip_offsetCtrl",
+    "pelvis_ctrl",
+    "pelvis_offsetCtrl",
+    "waist_ctrl",
+    "waist_offsetCtrl",
+    "spine01_ctrl",
+    "spine02_ctrl",
+    "spine03_ctrl",
+    "spine04_ctrl",
+    "cog_ribbon_ctrl",
+    "chest_ribbon_offsetCtrl",
+    "spine_ribbon_ctrl",
+    "chest_ribbon_ctrl",
+    "neckBase_ctrl",
+    "neckMid_ctrl",
+    "head_ctrl",
+    "head_offsetCtrl",
+    "jaw_ctrl",
+    "main_eye_ctrl",
+    # Facial Side GUI Rig
+    "main_nose_offset_ctrl",
+    "mid_upperLip_offset_ctrl",
+    "mid_lowerLip_offset_ctrl",
+    "jaw_offset_ctrl",
+    "tongue_offset_ctrl",
+    "mainMouth_offset_ctrl",
+    "inOutTongue_offset_ctrl",
+    # Facial Rig Ctrls
+    "main_nose_ctrl",
+    "mid_upperLip_ctrl",
+    "mid_lowerLip_ctrl",
+    "mainMouth_ctrl",
+    # New Spine Ctrls
+    "chest_ctrl",
+    "chest_global_fk_ctrl",
+]
+
+gt_x_zero_ctrls = [
+    "mainMouth_ctrl",
+    "head_ctrl",
+    "neckBase_ctrl",
+    "neckMid_ctrl",
+    "main_nose_offset_ctrl",
+    "jaw_offset_ctrl",
+    "tongue_offset_ctrl",
+]
+
+# ============================================================
+# EXPORT FUNCTION
+# ============================================================
+
+def anim_export(namespace=""):
+    scene_name = cmds.file(query=True, sceneName=True)
+    script_name = os.path.splitext(os.path.basename(scene_name))[0]
+
+    logger.info(f"Exporting animation: {script_name}")
+
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+
+    export_dict = {
+        "gt_interface_version": SCRIPT_VERSION,
+        "gt_export_method": "object-space"
+    }
+
+    available_ctrls = []
+
+    def collect(ctrl_dict):
+        for ctrl in ctrl_dict:
+            if cmds.objExists(namespace + LEFT_PREFIX + ctrl):
+                available_ctrls.append(LEFT_PREFIX + ctrl)
+            if cmds.objExists(namespace + RIGHT_PREFIX + ctrl):
+                available_ctrls.append(RIGHT_PREFIX + ctrl)
+
+    collect(biped_general_ctrls)
+    collect(biped_fk_ctrls)
+    collect(biped_ik_ctrls)
+
+    for ctrl in biped_center_ctrls:
+        if cmds.objExists(namespace + ctrl):
+            available_ctrls.append(ctrl)
+
+    if not available_ctrls:
+        logger.warning("No controls found. Skipping.")
+        return
+
+    for obj in available_ctrls:
+        attrs = cmds.listAnimatable(namespace + obj) or []
+        for attr in attrs:
+            short = attr.split(".")[-1]
+            try:
+                frames = cmds.keyframe(obj, q=True, at=short)
+                if not frames:
+                    continue
+
+                export_dict[f"{obj}.{short}"] = list(zip(
+                    frames,
+                    cmds.keyframe(obj, q=True, at=short, valueChange=True),
+                    cmds.keyTangent(obj, q=True, at=short, inAngle=True),
+                    cmds.keyTangent(obj, q=True, at=short, outAngle=True),
+                    cmds.keyTangent(obj, q=True, at=short, weightLock=True),
+                    cmds.keyTangent(obj, q=True, at=short, inWeight=True),
+                    cmds.keyTangent(obj, q=True, at=short, outWeight=True),
+                    cmds.keyTangent(obj, q=True, at=short, inTangentType=True),
+                    cmds.keyTangent(obj, q=True, at=short, outTangentType=True),
+                ))
+            except Exception:
+                logger.debug(f"Failed attribute: {obj}.{short}")
+
+    out_file = os.path.join(OUTPUT_DIR, script_name + FILE_EXTENSION)
+
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(export_dict, f, indent=4)
+
+    logger.info(f"Saved: {out_file}")
+
+# ============================================================
+# BATCH PROCESS
+# ============================================================
+
+def batch_export_anim():
+    if not os.path.exists(BATCH_MA_DIR):
+        logger.error("MA directory not found.")
+        return
+
+    ma_files = sorted(
+        f for f in os.listdir(BATCH_MA_DIR)
+        if f.lower().endswith(MA_EXTENSION)
+    )
+
+    if not ma_files:
+        logger.warning("No .ma files found.")
+        return
+
+    logger.info(f"Processing {len(ma_files)} scenes.")
+
+    for ma in ma_files:
+        path = os.path.join(BATCH_MA_DIR, ma)
+
+        try:
+            logger.info(f"Opening: {ma}")
+            cmds.file(path, open=True, force=True, prompt=False, ignoreVersion=True)
+            anim_export(NAMESPACE)
+
+        except Exception as e:
+            logger.error(f"Failed: {ma}")
+            traceback.print_exc()
+
+    logger.info("Batch export completed.")
+
+
+# ============================================================
+# ---------------------- SCRIPT 2 -----------------------------
+# ============================================================
+
+# --------------------------------------------------
+# Namespace Utilities
+# --------------------------------------------------
+
+def _get_object_namespaces(object_name):
+    return ":".join(object_name.split(":")[:-1]) + (":" if ":" in object_name else "")
+
+
+class StripNamespace(object):
+    @classmethod
+    def as_name(cls, uuid):
+        names = cmds.ls(uuid)
+        return names[0] if names else None
+
+    def __init__(self, namespace):
+        if not cmds.namespace(exists=namespace):
+            raise ValueError(f'Namespace "{namespace}" not found')
+        self.namespace = cmds.namespaceInfo(namespace, fn=True)
+        self.original_names = {}
+
+    def __enter__(self):
+        for abs_name in cmds.namespaceInfo(
+            self.namespace,
+            listOnlyDependencyNodes=True,
+            fullName=True,
+        ):
+            if not cmds.objExists(abs_name):
+                continue
+            try:
+                api_obj = OpenMaya.MGlobal.getSelectionListByName(abs_name).getDependNode(0)
+                api_node = OpenMaya.MFnDependencyNode(api_obj)
+                uuid = api_node.uuid().asString()
+                self.original_names[uuid] = api_node.name()
+                api_node.setName(api_node.name().replace(self.namespace, ""))
+            except RuntimeError:
+                pass
+        return [self.as_name(uuid) for uuid in self.original_names]
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for uuid, original_name in self.original_names.items():
+            current = self.as_name(uuid)
+            if not current:
+                continue
+            api_obj = OpenMaya.MGlobal.getSelectionListByName(current).getDependNode(0)
+            OpenMaya.MFnDependencyNode(api_obj).setName(original_name)
+
+
+# --------------------------------------------------
+# FBX Core
+# --------------------------------------------------
+
+
+def fbx_plugin_loaded():
+    try:
+        cmds.FBXExport
+    except Exception:
+        cmds.loadPlugin("fbxmaya")
+    return True
+
+
+def batch_export_fbx():
+    for ma in sorted(os.listdir(BATCH_MA_DIR)):
+        if not ma.lower().endswith(".ma"):
+            continue
+        try:
+            cmds.file(os.path.join(BATCH_MA_DIR, ma),
+                      open=True, force=True, prompt=False)
+            export_animation_fbx()
+        except Exception:
+            traceback.print_exc()
+
+
+def set_fbx_property(name, value):
+    try:
+        mel.eval(f"{name} -v {value};")
+    except Exception as e:
+        logger.warning(f"Failed FBX property: {name} = {value}")
+        logger.debug(str(e))
+
+
+def set_fbx_geometry_property(name, value):
+    set_fbx_property(f"FBXProperty Export|IncludeGrp|Geometry|{name}", value)
+
+
+def set_fbx_export_property(name, value):
+    set_fbx_property(f"FBXExport{name}", value)
+
+
+def configure_fbx():
+    fbx_plugin_loaded()
+
+    geo_props = {
+        "expHardEdges": "false",
+        "TangentsandBinormals": "false",
+        "SmoothMesh": "true",
+        "SelectionSet": "false",
+        "BlindData": "false",
+        "Instances": "false",
+        "Triangulate": "false",
+        "SmoothingGroups": "true",
+        "ContainerObjects": "true",
+    }
+
+    for k, v in geo_props.items():
+        set_fbx_geometry_property(k, v)
+
+    set_fbx_geometry_property("GeometryNurbsSurfaceAs", '"Interactive Display Mesh"')
+
+    export_props = {
+        "ReferencedAssetsContent": "false",
+        "Constraints": "false",
+        "Cameras": "false",
+        "Lights": "false",
+        "EmbeddedTextures": "false",
+        "InputConnections": "false",
+        "SmoothingGroups": "false",
+        "SmoothMesh": "false",
+        "BakeComplexAnimation": "true",
+        "UseSceneName": "true",
+    }
+
+    for k, v in export_props.items():
+        set_fbx_export_property(k, v)
+
+
+# --------------------------------------------------
+# Scene Helpers
+# --------------------------------------------------
+
+find_geo_grp = lambda: find_transform(name="geometry_grp")
+find_skeleton_grp = lambda: find_transform(name="skeleton_grp")
+find_main_ctrl = lambda: find_transform(name="main_ctrl")
+
+
+def _get_skeleton_root_from_metadata():
+    data = get_metadata(object_name=find_main_ctrl())
+    if data:
+        return data.get("skeleton_root")
+
+
+def find_root():
+    root = _get_skeleton_root_from_metadata() or "root_jnt"
+    return find_joint(root)
+
+
+def _make_visible(*objs):
+    objs = make_flat_list(objs)
+    state = {}
+    for obj in objs:
+        try:
+            state[obj + ".overrideEnabled"] = cmds.getAttr(obj + ".overrideEnabled")
+            state[obj + ".v"] = cmds.getAttr(obj + ".v")
+            cmds.setAttr(obj + ".overrideEnabled", 0)
+            cmds.setAttr(obj + ".v", 1)
+        except Exception:
+            pass
+    return state
+
+
+def _restore_attrs(state):
+    for attr, value in state.items():
+        try:
+            cmds.setAttr(attr, value)
+        except Exception:
+            pass
+
+
+def export_pre_roll():
+    data = namedtuple("PrerollData", ["root", "geo", "attrs"])
+
+    root = find_root()
+    geo = find_geo_grp()
+    skeleton = find_skeleton_grp()
+
+    if not (root and geo and skeleton and fbx_plugin_loaded()):
+        raise RuntimeError("Scene validation failed")
+
+    attrs = _make_visible(geo, skeleton, root)
+    return data(root=root, geo=get_children(geo), attrs=attrs)
+
+def get_animation_range():
+    """
+    Get animation range from all animation curves in the scene.
+    This works even when joints are constraint-driven.
+    """
+    curves = cmds.ls(type="animCurve") or []
+    if not curves:
+        return 0, 0
+
+    times = cmds.keyframe(curves, q=True, tc=True)
+    if not times:
+        return 0, 0
+
+    return int(min(times)), int(max(times))
+
+
+def set_fbx_bake_range(start, end):
+    set_fbx_export_property("BakeComplexStart", start)
+    set_fbx_export_property("BakeComplexEnd", end)
+
+# --------------------------------------------------
+# PUBLIC API
+# --------------------------------------------------
+
+def export_animation_fbx(file_path=None):
+    """
+    Headless baked animation FBX export.
+    Uses OUTPUT_DIR selected from GUI.
+    """
+    if not file_path:
+        if not OUTPUT_DIR:
+            raise RuntimeError("OUTPUT_DIR not set. Please choose output folder in GUI.")
+
+        if not os.path.exists(OUTPUT_DIR):
+            os.makedirs(OUTPUT_DIR)
+
+        scene = cmds.file(q=True, sn=True, shn=True)
+        scene_name = os.path.splitext(scene)[0] or "animation"
+
+        file_path = os.path.join(
+            OUTPUT_DIR,
+            f"{scene_name}_anim.fbx"
+        ).replace("\\", "/")
+
+
+    pre = export_pre_roll()
+
+    # --------------------------------------------------
+    # FIX: Explicit FBX bake range (DO NOT rely on timeline)
+    # --------------------------------------------------
+    start, end = get_animation_range()
+
+
+    configure_fbx()
+
+    # FBX ignores timeline, must be set explicitly
+    mel.eval(f"FBXExportBakeComplexStart -v {start};")
+    mel.eval(f"FBXExportBakeComplexEnd -v {end};")
+
+    logger.info(f"FBX bake range set to: {start} - {end}")
+
+    select_items(pre.root)
+
+
+    namespace = _get_object_namespaces(pre.root)
+    if namespace:
+        with StripNamespace(namespace):
+            cmds.FBXExport("-file", file_path, "-s")
+    else:
+        cmds.FBXExport("-file", file_path, "-s")
+
+
+    _restore_attrs(pre.attrs)
+
+    # Restore timeline
+
+    logger.info(f"Animation FBX exported: {file_path}")
+
+
+    #return file_path
+
+
+# ============================================================
+# ------------------------ GUI -------------------------------
+# ============================================================
+
+def browse_ma_folder(*_):
+    global BATCH_MA_DIR
+    path = cmds.fileDialog2(ds=2, fm=3)
+    if path:
+        BATCH_MA_DIR = path[0]
+        cmds.textField("maPathField", e=True, text=BATCH_MA_DIR)
+
+
+def browse_output_folder(*_):
+    global OUTPUT_DIR
+    path = cmds.fileDialog2(ds=2, fm=3)
+    if path:
+        OUTPUT_DIR = path[0]
+        cmds.textField("outPathField", e=True, text=OUTPUT_DIR)
+
+
+def run_batch_export(*_):
+    global EXPORT_TYPE, NAMESPACE
+
+    EXPORT_TYPE = cmds.optionMenu("exportType", q=True, v=True)
+   #NAMESPACE = cmds.textField("namespaceField", q=True, text=True)
+
+    if not BATCH_MA_DIR or not OUTPUT_DIR:
+        cmds.warning("Paths not set.")
+        return
+
+    if EXPORT_TYPE == ".anim":
+        batch_export_anim()
+    else:
+        batch_export_fbx()
+
+    cmds.inViewMessage(amg="Batch Export Finished", pos="topCenter", fade=True)
+
+
+def build_gui():
+    if cmds.window("GTBatchExporter", exists=True):
+        cmds.deleteUI("GTBatchExporter")
+
+    cmds.window("GTBatchExporter", title="GT Batch Animation Exporter", w=420)
+    cmds.columnLayout(adj=True, rs=8)
+
+    cmds.text(label="Batch .ma Folder")
+    cmds.rowLayout(nc=2, adj=1)
+    cmds.textField("maPathField")
+    cmds.button(label="Browse", c=browse_ma_folder)
+    cmds.setParent("..")
+
+    cmds.text(label="Output Folder")
+    cmds.rowLayout(nc=2, adj=1)
+    cmds.textField("outPathField")
+    cmds.button(label="Browse", c=browse_output_folder)
+    cmds.setParent("..")
+
+    cmds.text(label="Export Type")
+    cmds.optionMenu("exportType")
+    cmds.menuItem(label=".fbx")
+    cmds.menuItem(label=".anim")
+
+    cmds.separator(h=10)
+    cmds.button(label="Batch Export Animations",
+                bgc=(0.3, 0.7, 0.3),
+                h=40,
+                c=run_batch_export)
+
+    cmds.showWindow()
+
+
+build_gui()
